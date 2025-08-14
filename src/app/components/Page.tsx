@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Image from "next/image";
 
 interface Product {
@@ -19,13 +19,14 @@ const Page = () => {
 
   const observerTarget = useRef(null);
 
-  const fetchProducts = async (currentSkip: number) => {
+  // Wrap fetchProducts with useCallback to memoize the function
+  const fetchProducts = useCallback(async () => {
     if (loading || !hasMore) return;
 
     setLoading(true);
     try {
       const res = await fetch(
-        `https://dummyjson.com/products?limit=10&skip=${currentSkip}`
+        `https://dummyjson.com/products?limit=10&skip=${skip}`
       );
       const data = await res.json();
 
@@ -33,20 +34,22 @@ const Page = () => {
         setHasMore(false);
       } else {
         setProducts((prev) => [...prev, ...data.products]);
-        setSkip(currentSkip + 10);
+        setSkip((prev) => prev + 10);
       }
     } catch (error) {
       console.error("Failed to fetch products:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, hasMore, skip]); // Add dependencies for useCallback
 
+  // The useEffect for the IntersectionObserver
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !loading && hasMore) {
-          fetchProducts(skip);
+        // Only trigger fetch if the target is intersecting
+        if (entries[0].isIntersecting) {
+          fetchProducts();
         }
       },
       { threshold: 1.0 }
@@ -62,12 +65,12 @@ const Page = () => {
         observer.unobserve(currentObserverTarget);
       }
     };
-  }, [loading, hasMore, skip]);
+  }, [fetchProducts]); // Now 'fetchProducts' is a stable dependency
 
+  // Initial fetch on component mount
   useEffect(() => {
-    // Initial fetch on component mount
-    fetchProducts(0);
-  }, []);
+    fetchProducts();
+  }, [fetchProducts]);
 
   return (
     <div className="container mx-auto p-4">
@@ -106,7 +109,7 @@ const Page = () => {
       {!hasMore && (
         <div className="flex justify-center items-center mt-8">
           <p className="text-lg text-gray-500">
-            You've reached the end of the list.
+            You&apos;ve reached the end of the list.
           </p>
         </div>
       )}
